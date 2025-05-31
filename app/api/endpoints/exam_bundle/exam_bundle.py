@@ -4,6 +4,7 @@ from app.models.subject import Subject
 from app.models.question import Question
 from app.models.user import User
 from app.models.exam_bundle import ExamBundle
+from app.models.student_class import StudentClass
 from app.utils.constant.globals import UserRole
 from app.schemas.exam_bundle import *
 from app.api.endpoints.user.functions import get_current_active_user
@@ -24,52 +25,62 @@ def create_exam_bundle(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
         raise HTTPException(
-            status_code=403, detail="Only admins can create exam bundles"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins or teachers can create exam bundles"
         )
 
-    # Validate subject combinations
-    for subject_id in exam_bundle.subject_combinations:
+    selected_questions = []
+    for subject_id, num_questions in exam_bundle.subject_combinations.items():
         db_subject = db.query(Subject).filter(Subject.id == subject_id).first()
         if not db_subject:
             raise HTTPException(
-                status_code=400, detail=f"Subject with id {subject_id} not found"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Subject with id {subject_id} not found"
             )
 
-    # Fetch questions for each subject, limit the number of questions.
-    selected_questions = []
-    for subject_id in exam_bundle.subject_combinations:
-        #  use a subquery to get random questions for each subject
-        sub_query = (
+        # Fetch questions for each subject
+        questions_query = (
             select(Question.id)
             .filter(Question.subject_id == subject_id)
             .order_by(func.random())
-            .limit(exam_bundle.questions_per_subject)
-            .alias("sub_query")
+            .limit(num_questions)
         )
-        # Use the subquery
-        questions = db.query(Question).filter(Question.id.in_(sub_query)).all()
-        if len(questions) < exam_bundle.questions_per_subject:
+        # Execute the query to get question IDs
+        question_ids = db.execute(questions_query).scalars().all()
+
+        if len(question_ids) < num_questions:
             raise HTTPException(
-                status_code=400,
-                detail=f"Not enough questions available for subject {subject_id}",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Not enough questions available for subject {db_subject.name} (requested {num_questions}, found {len(question_ids)})",
             )
+
+        # Fetch actual Question objects
+        questions = db.query(Question).filter(Question.id.in_(question_ids)).all()
         selected_questions.extend(questions)
 
     db_exam_bundle = ExamBundle(
         name=exam_bundle.name,
         time_in_mins=exam_bundle.time_in_mins,
         is_active=exam_bundle.is_active,
-        subject_combinations=exam_bundle.subject_combinations,
+        subject_combinations=exam_bundle.subject_combinations, # This now holds Dict[UUID, int]
         uploaded_by_id=current_user.id,
     )
     db.add(db_exam_bundle)
-    db.commit()
 
     # Associate the selected questions with the exam bundle
     for question in selected_questions:
-        db_exam_bundle.questions.append(question)  # type: ignore
+        db_exam_bundle.questions.append(question)
+
+    # Associate student classes
+    if exam_bundle.class_ids:
+        for class_id in exam_bundle.class_ids:
+            student_class = db.query(StudentClass).filter(StudentClass.id == class_id).first()
+            if not student_class:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=f"StudentClass with id {class_id} not found"
+                )
+            db_exam_bundle.student_classes.append(student_class)
 
     db.commit()
     db.refresh(db_exam_bundle)
@@ -88,7 +99,7 @@ def read_exam_bundle(exam_bundle_id: UUID, db: Session = Depends(get_db)):
         db.query(ExamBundle).filter(ExamBundle.id == exam_bundle_id).first()
     )
     if not db_exam_bundle:
-        raise HTTPException(status_code=404, detail="Exam Bundle not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam Bundle not found")
     return db_exam_bundle
 
 
@@ -101,50 +112,64 @@ def update_exam_bundle(
 ):
     db_exam_bundle = db.query(ExamBundle).filter(ExamBundle.id == exam_bundle_id).first()
     if not db_exam_bundle:
-        raise HTTPException(status_code=404, detail="Exam Bundle not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam Bundle not found")
 
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
         raise HTTPException(
-            status_code=403, detail="Only admins can update exam bundles"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins or teachers can update exam bundles"
         )
 
+    # Update basic fields
     db_exam_bundle.name = exam_bundle.name
     db_exam_bundle.time_in_mins = exam_bundle.time_in_mins
     db_exam_bundle.is_active = exam_bundle.is_active
     db_exam_bundle.subject_combinations = exam_bundle.subject_combinations
 
-    # Validate subject combinations
-    for subject_id in exam_bundle.subject_combinations:
+    # Clear existing associations for questions and student classes
+    db_exam_bundle.questions = []
+    db_exam_bundle.student_classes = []
+    # It might be better to commit here if there's a chance of failure below,
+    # but often it's fine to commit once at the end. For now, one commit at the end.
+
+    selected_questions = []
+    for subject_id, num_questions in exam_bundle.subject_combinations.items():
         db_subject = db.query(Subject).filter(Subject.id == subject_id).first()
         if not db_subject:
             raise HTTPException(
-                status_code=400, detail=f"Subject with id {subject_id} not found"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Subject with id {subject_id} not found"
             )
 
-    # Clear existing questions
-    db_exam_bundle.questions = []
-
-    # Fetch new set of questions
-    selected_questions = []
-    for subject_id in exam_bundle.subject_combinations:
-        sub_query = (
+        questions_query = (
             select(Question.id)
             .filter(Question.subject_id == subject_id)
             .order_by(func.random())
-            .limit(exam_bundle.questions_per_subject)
-            .alias("sub_query")
+            .limit(num_questions)
         )
-        questions = db.query(Question).filter(Question.id.in_(sub_query)).all()
-        if len(questions) < exam_bundle.questions_per_subject:
+        question_ids = db.execute(questions_query).scalars().all()
+
+        if len(question_ids) < num_questions:
             raise HTTPException(
-                status_code=400,
-                detail=f"Not enough questions available for subject {subject_id}",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Not enough questions available for subject {db_subject.name} (requested {num_questions}, found {len(question_ids)})",
             )
+
+        questions = db.query(Question).filter(Question.id.in_(question_ids)).all()
         selected_questions.extend(questions)
 
-    # Associate the selected questions with the exam bundle
+    # Associate the new selected questions with the exam bundle
     for question in selected_questions:
-        db_exam_bundle.questions.append(question)  # type: ignore
+        db_exam_bundle.questions.append(question)
+
+    # Fetch and add new student classes
+    if exam_bundle.class_ids:
+        for class_id in exam_bundle.class_ids:
+            student_class = db.query(StudentClass).filter(StudentClass.id == class_id).first()
+            if not student_class:
+                # db.rollback() # Rollback if a class is not found, if previous parts were committed.
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=f"StudentClass with id {class_id} not found during update"
+                )
+            db_exam_bundle.student_classes.append(student_class)
 
     db.commit()
     db.refresh(db_exam_bundle)
@@ -159,11 +184,11 @@ def delete_exam_bundle(
 ):
     db_exam_bundle = db.query(ExamBundle).filter(ExamBundle.id == exam_bundle_id).first()
     if not db_exam_bundle:
-        raise HTTPException(status_code=404, detail="Exam Bundle not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam Bundle not found")
 
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
         raise HTTPException(
-            status_code=403, detail="Only admins can delete exam bundles"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins or teachers can delete exam bundles"
         )
 
     db.delete(db_exam_bundle)

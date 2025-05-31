@@ -6,6 +6,8 @@ from app.api.endpoints.question.question import router as question_router
 from app.api.endpoints.subject.subject import router as subject_router
 from app.api.endpoints.student.student import router as student_router
 from app.api.endpoints.teacher.teacher import router as teacher_router
+from app.api.endpoints.student_exam import router as student_exam_router
+from app.api.endpoints.practice_mode import router as practice_mode_router
 
 router = APIRouter()
 
@@ -16,3 +18,5 @@ router.include_router(question_router)
 router.include_router(subject_router)
 router.include_router(student_router)
 router.include_router(teacher_router)
+router.include_router(student_exam_router)
+router.include_router(practice_mode_router)

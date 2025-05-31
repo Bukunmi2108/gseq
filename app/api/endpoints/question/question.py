@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends, HTTPException
+from fastapi import APIRouter, status, Depends, HTTPException, Response
 from app.core.dependencies import get_db
 from app.models.subject import Subject
 from app.models.question import Question
@@ -19,12 +19,12 @@ def create_question(
 ):
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=403, detail="Only admins can create questions"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create questions"
         )
     db_subject = db.query(Subject).filter(Subject.id == question.subject_id).first()
     if not db_subject:
         raise HTTPException(
-            status_code=400, detail="Subject not found"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Subject not found"
         )  # Ensure subject exists
 
     db_question = Question(
@@ -33,6 +33,7 @@ def create_question(
         question_text=question.question_text,
         options=question.options,
         answer=question.answer,
+        year=question.year
     )
     db.add(db_question)
     db.commit()
@@ -50,7 +51,7 @@ def read_questions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
 def read_question(question_id: UUID, db: Session = Depends(get_db)):
     db_question = db.query(Question).filter(Question.id == question_id).first()
     if not db_question:
-        raise HTTPException(status_code=404, detail="Question not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     return db_question
 
 
@@ -61,16 +62,16 @@ def update_question(
 ):
     db_question = db.query(Question).filter(Question.id == question_id).first()
     if not db_question:
-        raise HTTPException(status_code=404, detail="Question not found")
-    if current_user.role != UserRole.ADMIN or current_user.role != UserRole.TEACHER:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
         raise HTTPException(
-            status_code=403, detail="Only admins or Teachers can update questions"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins or Teachers can update questions"
         )
 
     db_subject = db.query(Subject).filter(Subject.id == question.subject_id).first()
     if not db_subject:
         raise HTTPException(
-            status_code=400, detail="Subject not found"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Subject not found"
         )  # Ensure subject exists
 
     db_question.type = question.type
@@ -78,6 +79,7 @@ def update_question(
     db_question.question_text = question.question_text
     db_question.options = question.options
     db_question.answer = question.answer
+    db_question.year = question.year
     db.commit()
     db.refresh(db_question)
     return db_question
@@ -90,11 +92,23 @@ def delete_question(
 ):
     db_question = db.query(Question).filter(Question.id == question_id).first()
     if not db_question:
-        raise HTTPException(status_code=404, detail="Question not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=403, detail="Only admins can delete questions"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can delete questions"
         )
     db.delete(db_question)
     db.commit()
     return db_question
+
+
+@router.get("/{question_id}/image")
+def get_question_image(question_id: UUID, db: Session = Depends(get_db)):
+    db_question = db.query(Question).filter(Question.id == question_id).first()
+    if not db_question:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+
+    if not db_question.question_image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found for this question")
+
+    return Response(content=db_question.question_image, media_type="image/jpeg")

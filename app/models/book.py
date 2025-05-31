@@ -23,6 +23,18 @@ class Book(CommonModel):
     # Relationships
     uploaded_by = relationship("User", back_populates="uploaded_books")
 
+    @property
+    def likes_count(self) -> int:
+        return len(self.likes)
+
+    @property
+    def has_cover_image(self) -> bool:
+        return self.cover_image is not None
+
+    @property
+    def has_pdf(self) -> bool:
+        return self.pdf is not None
+
     def __repr__(self):
         return f"{self.name}"
 

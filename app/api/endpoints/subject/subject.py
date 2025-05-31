@@ -7,6 +7,7 @@ from app.schemas.subject import *
 from app.api.endpoints.user.functions import get_current_active_user
 from sqlalchemy.orm import Session 
 from typing import List
+from uuid import UUID
 
 router = APIRouter(prefix="/subject", tags=['Subjects'])
 
@@ -16,7 +17,7 @@ def create_subject(
 ):
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=403, detail="Only admins can create subjects"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create subjects"
         )
     db_subject = Subject(name=subject.name)
     db.add(db_subject)
@@ -32,24 +33,24 @@ def read_subjects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
 
 
 @router.get("/{subject_id}", response_model=SubjectSchema)
-def read_subject(subject_id: int, db: Session = Depends(get_db)):
+def read_subject(subject_id: UUID, db: Session = Depends(get_db)):
     db_subject = db.query(Subject).filter(Subject.id == subject_id).first()
     if not db_subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
     return db_subject
 
 
 
 @router.put("/update/{subject_id}", response_model=SubjectSchema)
 def update_subject(
-    subject_id: int, subject: SubjectCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)
+    subject_id: UUID, subject: SubjectCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)
 ):
     db_subject = db.query(Subject).filter(Subject.id == subject_id).first()
     if not db_subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=403, detail="Only admins can update subjects"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can update subjects"
         )
     db_subject.name = subject.name
     db.commit()
@@ -60,14 +61,14 @@ def update_subject(
 
 @router.delete("/delete/{subject_id}", response_model=SubjectSchema)
 def delete_subject(
-    subject_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)
+    subject_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)
 ):
     db_subject = db.query(Subject).filter(Subject.id == subject_id).first()
     if not db_subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
-            status_code=403, detail="Only admins can delete subjects"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can delete subjects"
         )
     db.delete(db_subject)
     db.commit()

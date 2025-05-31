@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.base import Base
 from .common import CommonModel
+from .associations import exam_bundle_student_classes_association
 
 
 class ExamBundle(CommonModel):
@@ -20,6 +21,12 @@ class ExamBundle(CommonModel):
     # Relationships
     uploaded_by = relationship("User", back_populates="exam_bundles")
     questions = relationship("Question", secondary="exam_bundle_questions", back_populates="exam_bundles")
+    student_classes = relationship(
+        "StudentClass",
+        secondary=exam_bundle_student_classes_association,
+        back_populates="exam_bundles"
+    )
+    attempts = relationship("StudentExamAttempt", back_populates="exam_bundle", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"{self.name}"

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum, LargeBinary, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, Enum, LargeBinary, ForeignKey, Text, JSON, Integer
 from sqlalchemy.orm import relationship
 from enum import Enum as PythonEnum
 from sqlalchemy.dialects.postgresql import UUID
@@ -15,8 +15,9 @@ class Question(CommonModel):
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False)
     question_image = Column(LargeBinary, nullable=True)
     question_text = Column(Text, nullable=False)
-    options = Column(JSON, nullable=False)
-    answer = Column(String, nullable=False)
+    options = Column(JSON, nullable=False) # e.g., {"A": "Option 1", "B": "Option 2"}
+    answer = Column(String, nullable=False) # e.g., "A" or the text of the correct option
+    year = Column(Integer, nullable=True) # Added: The year the question pertains to
 
     # Relationships
     subject = relationship("Subject", back_populates="questions")
