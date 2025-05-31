@@ -33,6 +33,7 @@ def create_question(
         question_text=question.question_text,
         options=question.options,
         answer=question.answer,
+        year=question.year
     )
     db.add(db_question)
     db.commit()
@@ -78,6 +79,7 @@ def update_question(
     db_question.question_text = question.question_text
     db_question.options = question.options
     db_question.answer = question.answer
+    db_question.year = question.year
     db.commit()
     db.refresh(db_question)
     return db_question

@@ -11,3 +11,5 @@ from .admin import Admin
 from .book import Book
 from .student_exam_attempt import StudentExamAttempt
 from .student_answer import StudentAnswer
+from .practice_session import PracticeSession
+from .practice_session_answer import PracticeSessionAnswer

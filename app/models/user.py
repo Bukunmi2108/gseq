@@ -26,6 +26,7 @@ class User(CommonModel):
         "Book", secondary=book_user_likes_association, back_populates="likes"
     )
     exam_attempts = relationship("StudentExamAttempt", back_populates="student", cascade="all, delete-orphan")
+    practice_sessions = relationship("PracticeSession", back_populates="student", cascade="all, delete-orphan")
 
     __mapper_args__ = {
         "polymorphic_identity": "user",
