@@ -14,18 +14,18 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # JWT settings
-    SECRET_KEY: str
-    REFRESH_SECRET_KEY: str
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "dummy_secret_key")
+    REFRESH_SECRET_KEY: str = os.getenv("REFRESH_SECRET_KEY", "dummy_refresh_secret_key")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     
     # Database settings
-    DATABASE_URL: str = "postgresql://postgres:password@localhost/gse2"
+    DATABASE_URL: str = "postgresql://postgres:password@localhost/gse2" # This is hardcoded, not from .env for this example
     
     # Initial admin credentials
-    INITIAL_ADMIN_EMAIL: str
-    INITIAL_ADMIN_PASSWORD: str
+    INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL", "admin@example.com")
+    INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD", "adminpassword")
 
     # Logging configuration
     LOG_LEVEL: str = "INFO"

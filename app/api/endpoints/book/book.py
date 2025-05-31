@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, status, Depends, UploadFile, File, HTTPException, Response
 from app.core.dependencies import get_db
 from app.models.book import Book
 from app.models.user import User
@@ -155,3 +155,25 @@ def view_book(book_id: UUID, db: Session = Depends(get_db)):
     db_book.views += 1
     db.commit()
     return {"message": "View count updated"}
+
+
+@router.get("/{book_id}/cover_image")
+def get_cover_image(book_id: UUID, db: Session = Depends(get_db)):
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    if not book.cover_image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cover image not found for this book")
+
+    return Response(content=book.cover_image, media_type="image/jpeg")
+
+
+@router.get("/{book_id}/pdf")
+def get_pdf(book_id: UUID, db: Session = Depends(get_db)):
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    if not book.pdf:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF not found for this book")
+
+    return Response(content=book.pdf, media_type="application/pdf")

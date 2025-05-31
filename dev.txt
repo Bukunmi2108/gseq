@@ -1,6 +1,8 @@
 alembic
 annotated-types
 anyio
+pytest
+httpx
 bcrypt
 click
 ecdsa
@@ -26,3 +28,5 @@ starlette
 typing_extensions
 uvicorn
 WTForms
+pydantic-settings
+psycopg2-binary

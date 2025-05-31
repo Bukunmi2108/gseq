@@ -9,3 +9,5 @@ from .session import Session
 from .term import Term
 from .admin import Admin
 from .book import Book
+from .student_exam_attempt import StudentExamAttempt
+from .student_answer import StudentAnswer
